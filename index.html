@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bảng LED Chạy Chữ</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { height:100vh; background:#000; color:#fff; font-family:'Segoe UI', Arial, sans-serif; overflow:hidden; }
+
+    #setup, #display { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+    #display { display:none; background:#000; }
+
+    .setup-box { width:100%; max-width:900px; background:rgba(20,20,20,0.95); padding:35px; border-radius:18px; box-shadow:0 0 50px rgba(255,140,0,0.4); }
+
+    h1 { color:#ffdd00; text-align:center; margin-bottom:25px; text-shadow:0 0 20px #ffaa00; }
+
+    label { display:block; margin:14px 0 7px; font-weight:bold; color:#ddd; }
+
+    input, textarea, select { width:100%; padding:13px; border:1px solid #555; background:#111; color:#fff; border-radius:9px; font-size:1.1rem; }
+    textarea { min-height:160px; resize:vertical; }
+
+    .colors { display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; }
+    .color-swatch { width:46px; height:46px; border-radius:50%; cursor:pointer; border:4px solid transparent; transition:0.25s; }
+    .color-swatch.active, .color-swatch:hover { border-color:#fff; transform:scale(1.15); }
+
+    .controls { display:flex; gap:18px; flex-wrap:wrap; margin:22px 0; }
+    .control-item { flex:1; min-width:210px; }
+
+    button { padding:16px 42px; font-size:1.35rem; border:none; border-radius:12px; cursor:pointer; margin:25px 10px; transition:0.3s; }
+    #start { background:#e65100; color:white; }
+    #start:hover { background:#ff8800; transform:translateY(-4px); }
+    #edit { background:#444; color:#eee; }
+    #edit:hover { background:#666; }
+
+    .led-frame { width:94%; max-width:1920px; background:#000; border:16px solid #1f1f1f; border-radius:22px; box-shadow:0 0 130px rgba(255,170,0,0.45), inset 0 0 90px #111; overflow:hidden; margin:0 auto; }
+
+    .content-area { height:420px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+
+    /* NGANG TOÀN BỘ */
+    .scroll-horizontal { display:flex; white-space:nowrap; font-size:9rem; font-weight:900; color:inherit; text-shadow:0 0 40px currentColor, 0 0 90px currentColor; }
+    .scroll-horizontal span { padding:0 120px; flex-shrink:0; }
+
+    @keyframes scrollLeft { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
+    @keyframes scrollRight { 0% { transform:translateX(-50%); } 100% { transform:translateX(0); } }
+
+    /* DỌC TỪNG DÒNG - GIẢM FONT KHI DÀI */
+    #current-line {
+      font-weight:900; color:inherit;
+      text-shadow:0 0 40px currentColor, 0 0 90px currentColor, 0 0 150px currentColor;
+      display:inline-block; padding:0 40px;
+      text-align:center; line-height:1.2;
+      max-width:100%;
+    }
+
+    @keyframes blink { 0%,100% { opacity:0.3; } 50% { opacity:1; text-shadow:0 0 70px currentColor, 0 0 140px currentColor; } }
+
+    .fs-btn { position:fixed; top:25px; right:25px; z-index:9999; background:rgba(0,0,0,0.8); color:#ffdd00; border:4px solid #ff9900; border-radius:14px; padding:15px 30px; font-size:1.55rem; cursor:pointer; transition:0.3s; }
+    .fs-btn:hover { background:rgba(255,160,0,0.5); transform:scale(1.12); }
+    #edit { left:25px; right:auto; }
+
+    :fullscreen .fs-btn { display:none; }
+
+    @media (max-width:820px) { .content-area { height:300px; } #current-line, .scroll-horizontal { font-size:6rem; } }
+    @media (max-width:500px) { .content-area { height:220px; } #current-line, .scroll-horizontal { font-size:4.5rem; } }
+  </style>
+</head>
+<body>
+
+  <div id="setup">
+    <div class="setup-box">
+      <h1>✨ BẢNG LED CHẠY CHỮ - FIT MÀN HÌNH</h1>
+
+      <label>Nội dung (mỗi dòng Enter):</label>
+      <textarea id="msg">Vui lòng nhập nội dung
+        Nhấn enter nếu nhiều dòng
+</textarea>
+
+      <label>Màu chữ:</label>
+      <div class="colors">
+        <input type="color" id="color" value="#ffdd00">
+        <div class="color-swatch active" style="background:#ffdd00" data-c="#ffdd00"></div>
+        <div class="color-swatch" style="background:#ff6600" data-c="#ff6600"></div>
+        <div class="color-swatch" style="background:#00ffaa" data-c="#00ffaa"></div>
+      </div>
+
+      <div class="controls">
+        <div class="control-item">
+          <label>Hiệu ứng:</label>
+          <select id="mode">
+            <option value="horizontal-left">Ngang trái → phải (toàn bộ)</option>
+            <option value="horizontal-right">Ngang phải → trái (toàn bộ)</option>
+            <option value="vertical-smart">Dọc từng dòng (giảm font nếu dài >10 ký tự)</option>
+            <option value="blink">Nhấp nháy</option>
+          </select>
+        </div>
+        <div class="control-item">
+          <label>Thời gian hiển thị 1 dòng (giây):</label>
+          <input type="number" id="speed" value="8" min="1" max="60" step="1">
+        </div>
+        <div class="control-item">
+          <label>Thời gian chờ giữa dòng (giây):</label>
+          <input type="number" id="delay" value="2" min="0" max="10" step="0.5">
+        </div>
+      </div>
+
+      <div style="text-align:center"><button id="start">BẮT ĐẦU →</button></div>
+    </div>
+  </div>
+
+  <div id="display">
+    <button class="fs-btn" id="fs">Toàn màn hình</button>
+    <button class="fs-btn" id="edit">← Chỉnh sửa</button>
+
+    <div class="led-frame">
+      <div class="content-area">
+        <div id="horizontal" class="scroll-horizontal" style="display:none;"></div>
+        <div id="current-line" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const setup = document.getElementById('setup');
+    const display = document.getElementById('display');
+    const horizontal = document.getElementById('horizontal');
+    const currentLine = document.getElementById('current-line');
+    const fsBtn = document.getElementById('fs');
+    const editBtn = document.getElementById('edit');
+    const startBtn = document.getElementById('start');
+
+    const msgEl = document.getElementById('msg');
+    const colorEl = document.getElementById('color');
+    const modeEl = document.getElementById('mode');
+    const speedEl = document.getElementById('speed');
+    const delayEl = document.getElementById('delay');
+
+    document.querySelectorAll('.color-swatch').forEach(el => {
+      el.onclick = () => {
+        colorEl.value = el.dataset.c;
+        document.querySelectorAll('.color-swatch').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+      };
+    });
+
+    startBtn.onclick = () => {
+      const text = msgEl.value.trim() || "CHƯA CÓ NỘI DUNG";
+      const color = colorEl.value;
+      const mode = modeEl.value;
+      const duration = parseFloat(speedEl.value) || 8;
+      const delaySec = parseFloat(delayEl.value) || 2;
+
+      horizontal.style.color = color;
+      currentLine.style.color = color;
+
+      horizontal.style.display = 'none';
+      currentLine.style.display = 'none';
+      currentLine.style.animation = 'none';
+
+      if (mode.startsWith('horizontal-')) {
+        const content = text.replace(/\n/g, '   •   ');
+        horizontal.innerHTML = `<span>${content}</span><span>${content}</span>`;
+        horizontal.style.display = 'flex';
+
+        const dir = mode === 'horizontal-left' ? 'scrollLeft' : 'scrollRight';
+        horizontal.style.animation = `${dir} ${duration}s linear infinite`;
+        if (mode === 'horizontal-right') horizontal.style.transform = 'translateX(-50%)';
+
+      } else if (mode === 'vertical-smart') {
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length) lines.push("CHƯA CÓ NỘI DUNG");
+
+        currentLine.style.display = 'inline-block';
+        let idx = 0;
+
+        function showNextLine() {
+          const line = lines[idx % lines.length];
+          currentLine.textContent = line;
+
+          // Reset font size và style
+          currentLine.style.fontSize = '9rem';
+          currentLine.style.transform = 'none';
+
+          // Nếu dài >10 ký tự → giảm font để fit
+          if (line.length > 10) {
+            // Tính font size giảm dần dựa trên độ dài
+            const fontSize = Math.max(3, 9 - (line.length - 10) * 0.3); // giảm dần, min 3rem
+            currentLine.style.fontSize = fontSize + 'rem';
+          }
+
+          setTimeout(() => {
+            idx++;
+            showNextLine();
+          }, (duration + delaySec) * 1000);
+        }
+
+        showNextLine();
+
+      } else if (mode === 'blink') {
+        horizontal.innerHTML = `<span>${text.replace(/\n/g, '  •  ')}</span>`;
+        horizontal.style.display = 'flex';
+        horizontal.style.animation = 'blink 1.4s infinite';
+      }
+
+      setup.style.display = 'none';
+      display.style.display = 'flex';
+    };
+
+    editBtn.onclick = () => {
+      display.style.display = 'none';
+      setup.style.display = 'flex';
+      horizontal.style.animation = 'none';
+    };
+
+    fsBtn.onclick = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    };
+
+    document.addEventListener('fullscreenchange', () => {
+      fsBtn.textContent = document.fullscreenElement ? 'Thoát toàn màn hình' : 'Toàn màn hình';
+    });
+  </script>
+</body>
+</html>
